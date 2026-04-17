@@ -1,173 +1,189 @@
+import { useState } from 'react'
+import { Auth } from './components/Auth'
+import { ChatList } from './components/ChatList'
+import { Chat } from './components/Chat'
+import { Friends } from './components/Friends'
+import { Profile } from './components/Profile'
+import type { User, ChatRoom, Friend } from './types'
 import './App.css'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { useChatSocket } from './chat/useChatSocket'
 
 function App() {
-  const backendUrl = useMemo(
-    () => import.meta.env.VITE_BACKEND_URL ?? 'http://localhost:3002',
-    [],
-  )
+  const [isAuthenticated, setIsAuthenticated] = useState(false)
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const [chats, setChats] = useState<ChatRoom[]>([])
+  const [friends, setFriends] = useState<Friend[]>([])
+  const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
+  const [activeTab, setActiveTab] = useState<'chats' | 'friends'>('chats')
+  const [showProfile, setShowProfile] = useState(false)
 
-  const [room, setRoom] = useState('public')
-  const [nickname, setNickname] = useState('user')
-  const [text, setText] = useState('')
-  const [uiError, setUiError] = useState<string | null>(null)
-
-  const { status, error, messages, connect, disconnect, sendMessage } =
-    useChatSocket(backendUrl)
-
-  const endRef = useRef<HTMLDivElement | null>(null)
-
-  useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' })
-  }, [messages.length])
-
-  useEffect(() => {
-    setUiError(null)
-  }, [room, nickname])
-
-  const connected = status === 'connected'
-  const connecting = status === 'connecting'
-
-  const handleConnect = () => {
-    const normalizedRoom = room.trim()
-    const normalizedNickname = nickname.trim()
-
-    if (!normalizedRoom) {
-      setUiError('Укажите имя комнаты')
-      return
+  const handleLogin = (username: string, password: string) => {
+    console.log('Login:', username, password)
+    const newUser: User = {
+      id: Date.now().toString(),
+      username: username,
+      email: `${username}@example.com`,
+      status: 'online',
+      bio: '',
+      friendsCount: 0,
+      chatsCount: 0
     }
-    if (!normalizedNickname) {
-      setUiError('Укажите никнейм')
-      return
-    }
-
-    setUiError(null)
-    connect({ room: normalizedRoom, nickname: normalizedNickname })
+    setCurrentUser(newUser)
+    setChats([])
+    setFriends([])
+    setSelectedChatId(null)
+    setIsAuthenticated(true)
   }
 
-  const handleSend = () => {
-    const payload = text.trim()
-    if (!payload) return
-
-    setUiError(null)
-    sendMessage(payload)
-    setText('')
+  const handleRegister = (username: string, email: string, password: string) => {
+    console.log('Register:', username, email, password)
+    const newUser: User = {
+      id: Date.now().toString(),
+      username: username,
+      email: email,
+      status: 'online',
+      bio: '',
+      friendsCount: 0,
+      chatsCount: 0
+    }
+    setCurrentUser(newUser)
+    setChats([])
+    setFriends([])
+    setSelectedChatId(null)
+    setIsAuthenticated(true)
   }
+
+  const handleUpdateBio = (bio: string) => {
+    if (currentUser) {
+      setCurrentUser({ ...currentUser, bio })
+    }
+  }
+
+  const handleAddFriend = (friendUsername: string) => {
+    const newFriend: Friend = {
+      id: Date.now().toString(),
+      username: friendUsername,
+      email: `${friendUsername}@example.com`,
+      status: 'offline'
+    }
+    setFriends([...friends, newFriend])
+    if (currentUser) {
+      setCurrentUser({ ...currentUser, friendsCount: friends.length + 1 })
+    }
+  }
+
+  const handleRemoveFriend = (friendId: string) => {
+    setFriends(friends.filter(f => f.id !== friendId))
+    if (currentUser) {
+      setCurrentUser({ ...currentUser, friendsCount: friends.length - 1 })
+    }
+  }
+
+  const handleStartChat = (friend: Friend) => {
+    const existingChat = chats.find(chat => 
+      chat.participants.some(p => p.id === friend.id)
+    )
+    
+    if (existingChat) {
+      setSelectedChatId(existingChat.id)
+    } else {
+      const newChat: ChatRoom = {
+        id: Date.now().toString(),
+        name: friend.username,
+        lastMessage: '',
+        lastMessageTime: Date.now(),
+        unreadCount: 0,
+        participants: [currentUser!, friend]
+      }
+      setChats([...chats, newChat])
+      setSelectedChatId(newChat.id)
+      if (currentUser) {
+        setCurrentUser({ ...currentUser, chatsCount: chats.length + 1 })
+      }
+    }
+    setActiveTab('chats')
+  }
+
+  const handleSendMessage = (chatId: string, text: string) => {
+    setChats(prev => prev.map(chat =>
+      chat.id === chatId
+        ? { 
+            ...chat, 
+            lastMessage: text, 
+            lastMessageTime: Date.now(), 
+            unreadCount: chat.unreadCount + 1 
+          }
+        : chat
+    ))
+  }
+
+  const handleLogout = () => {
+    setIsAuthenticated(false)
+    setCurrentUser(null)
+    setChats([])
+    setFriends([])
+    setSelectedChatId(null)
+    setShowProfile(false)
+  }
+
+  if (!isAuthenticated || !currentUser) {
+    return <Auth onLogin={handleLogin} onRegister={handleRegister} />
+  }
+
+  const selectedChat = chats.find(c => c.id === selectedChatId) || null
 
   return (
-    <div className="chatPage">
-      <div className="chatContainer">
-        <div className="chatHeader">
-          <div className="chatField">
-            <label className="chatLabel" htmlFor="room">
-              Комната
-            </label>
-            <input
-              id="room"
-              className="chatInput"
-              value={room}
-              onChange={(e) => setRoom(e.target.value)}
-              disabled={connected || connecting}
-              placeholder="public"
-            />
-          </div>
-
-          <div className="chatField">
-            <label className="chatLabel" htmlFor="nickname">
-              Никнейм
-            </label>
-            <input
-              id="nickname"
-              className="chatInput"
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-              disabled={connected || connecting}
-              placeholder="user"
-            />
-          </div>
-
-          <div className="chatActions">
-            {connected || connecting ? (
-              <button className="chatButton" onClick={disconnect}>
-                Отключиться
-              </button>
-            ) : (
-              <button
-                className="chatButton"
-                onClick={handleConnect}
-                disabled={!room.trim() || !nickname.trim()}
-              >
-                Подключиться
-              </button>
-            )}
-          </div>
+    <div className="messenger-layout">
+      {showProfile && (
+        <Profile
+          user={currentUser}
+          onUpdateBio={handleUpdateBio}
+          onClose={() => setShowProfile(false)}
+          onLogout={handleLogout}
+        />
+      )}
+      
+      <div className="sidebar">
+        <div className="sidebar-tabs">
+          <button
+            className={`tab-button ${activeTab === 'chats' ? 'active' : ''}`}
+            onClick={() => setActiveTab('chats')}
+          >
+            Чаты
+          </button>
+          <button
+            className={`tab-button ${activeTab === 'friends' ? 'active' : ''}`}
+            onClick={() => setActiveTab('friends')}
+          >
+            Друзья
+          </button>
         </div>
-
-        <div className="chatMeta">
-          <span>
-            Статус: <b>{status}</b>
-          </span>
-          {uiError ?? error ? (
-            <span className="chatError">{uiError ?? error}</span>
-          ) : null}
-        </div>
-
-        <div className="chatPanel">
-          <div className="chatMessages" aria-live="polite">
-            {messages.length === 0 ? (
-              <div className="chatHint">
-                Сообщений пока нет. Подключитесь и отправьте текст.
-              </div>
-            ) : null}
-
-            {messages.map((m) => (
-              <div
-                key={m.id}
-                className={
-                  m.kind === 'system'
-                    ? 'chatMessage chatSystem'
-                    : 'chatMessage chatUser'
-                }
-              >
-                <div className="chatAuthor">
-                  {m.kind === 'system' ? 'Система' : m.author}
-                </div>
-                <div className="chatText">{m.text}</div>
-              </div>
-            ))}
-
-            <div ref={endRef} />
-          </div>
-
-          <div className="chatComposer">
-            <input
-              className="chatInput chatComposerInput"
-              value={text}
-              onChange={(e) => setText(e.target.value)}
-              placeholder={
-                connected ? 'Введите сообщение...' : 'Подключитесь, чтобы писать'
-              }
-              disabled={!connected}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleSend()
-              }}
-            />
-            <button
-              className="chatButton"
-              disabled={!connected || !text.trim()}
-              onClick={handleSend}
-            >
-              Отправить
-            </button>
-          </div>
-        </div>
-
-        <div className="chatFooterHint">
-          Пример для масштабирования: комнаты, история и отдельный слой
-          сервиса на сервере.
-        </div>
+        
+        {activeTab === 'chats' ? (
+          <ChatList
+            chats={chats}
+            currentUser={currentUser}
+            selectedChatId={selectedChatId}
+            onSelectChat={setSelectedChatId}
+            onOpenProfile={() => setShowProfile(true)}
+          />
+        ) : (
+          <Friends
+            currentUser={currentUser}
+            friends={friends}
+            onAddFriend={handleAddFriend}
+            onRemoveFriend={handleRemoveFriend}
+            onStartChat={handleStartChat}
+            onOpenProfile={() => setShowProfile(true)}
+          />
+        )}
       </div>
+      
+      <Chat
+        currentUser={currentUser}
+        selectedChat={selectedChat}
+        onSendMessage={handleSendMessage}
+        onLogout={handleLogout}
+      />
     </div>
   )
 }
