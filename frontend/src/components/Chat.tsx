@@ -1,73 +1,72 @@
 import { useState, useEffect, useRef } from 'react'
-import type { User, ChatRoom, Message } from '../types'
+import type { User, Message } from '../types'
+import { api } from '../services/api'
+import { getSocket } from '../services/socket'
 
 interface ChatProps {
   currentUser: User
-  selectedChat: ChatRoom | null
-  onSendMessage: (chatId: string, text: string) => void
-  onLogout: () => void
+  chatId: number | null
+  chatName: string
+  onSendMessage: (chatId: number, text: string) => void
 }
 
-export function Chat({ currentUser, selectedChat, onSendMessage, onLogout }: ChatProps) {
+export default function Chat({ currentUser, chatId, chatName, onSendMessage }: ChatProps) {
   const [messages, setMessages] = useState<Message[]>([])
   const [inputText, setInputText] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    if (selectedChat) {
-      const otherUser = selectedChat.participants.find(p => p.id !== currentUser.id)
-      const mockMessages: Message[] = [
-        {
-          id: '1',
-          chatId: selectedChat.id,
-          senderId: otherUser?.id || 'unknown',
-          senderName: otherUser?.username || 'Пользователь',
-          text: 'Привет! Как дела?',
-          timestamp: Date.now() - 3600000,
-          isOwn: false
-        },
-        {
-          id: '2',
-          chatId: selectedChat.id,
-          senderId: currentUser.id,
-          senderName: currentUser.username,
-          text: 'Отлично! А у тебя?',
-          timestamp: Date.now() - 1800000,
-          isOwn: true
-        }
-      ]
-      setMessages(mockMessages)
-    } else {
-      setMessages([])
+    if (chatId) {
+      loadMessages()
     }
-  }, [selectedChat, currentUser.id, currentUser.username])
+  }, [chatId])
+
+  useEffect(() => {
+    const socket = getSocket()
+    if (socket) {
+      socket.on('new_message', (message: Message) => {
+        if (message.chatId === chatId) {
+          setMessages(prev => [...prev, message])
+        }
+      })
+    }
+    return () => {
+      const socket = getSocket()
+      if (socket) {
+        socket.off('new_message')
+      }
+    }
+  }, [chatId])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [messages])
 
-  const handleSend = () => {
-    if (!inputText.trim() || !selectedChat) return
-
-    const newMessage: Message = {
-      id: Date.now().toString(),
-      chatId: selectedChat.id,
-      senderId: currentUser.id,
-      senderName: currentUser.username,
-      text: inputText.trim(),
-      timestamp: Date.now(),
-      isOwn: true
+  const loadMessages = async () => {
+    if (!chatId) return
+    try {
+      const data = await api.getMessages(chatId)
+      setMessages(data)
+    } catch (err) {
+      console.error('Failed to load messages', err)
     }
-
-    setMessages([...messages, newMessage])
-    onSendMessage(selectedChat.id, inputText.trim())
-    setInputText('')
   }
 
-  if (!selectedChat) {
+  const handleSend = async () => {
+    if (!inputText.trim() || !chatId) return
+
+    const socket = getSocket()
+    if (socket) {
+      socket.emit('send_message', { chatId, text: inputText.trim() })
+      onSendMessage(chatId, inputText.trim())
+      setInputText('')
+    }
+  }
+
+  if (!chatId) {
     return (
       <div className="chat-empty">
-        <div className="empty-state">
+        <div className="empty-chat-card">
           <h3>Чат не выбран</h3>
           <p>Выберите чат из списка чтобы начать общение</p>
         </div>
@@ -75,37 +74,23 @@ export function Chat({ currentUser, selectedChat, onSendMessage, onLogout }: Cha
     )
   }
 
-  const otherUser = selectedChat.participants.find(p => p.id !== currentUser.id)
-  const displayName = selectedChat.name || (otherUser ? otherUser.username : 'Unknown')
-
   return (
     <div className="chat-area">
       <div className="chat-area-header">
         <div className="chat-area-info">
           <div className="chat-area-avatar">
-            {displayName.charAt(0).toUpperCase()}
+            {chatName.charAt(0).toUpperCase()}
           </div>
           <div className="chat-area-details">
-            <h3>{displayName}</h3>
-            <span className={`user-status ${otherUser?.status === 'online' ? 'online' : 'offline'}`}>
-              {otherUser?.status === 'online' ? 'В сети' : 'Не в сети'}
-            </span>
+            <h3>{chatName}</h3>
           </div>
         </div>
-        <button onClick={onLogout} className="logout-button">
-          Выйти
-        </button>
       </div>
 
       <div className="chat-messages-area">
         {messages.map((msg) => (
-          <div
-            key={msg.id}
-            className={`message ${msg.isOwn ? 'message-own' : 'message-other'}`}
-          >
-            {!msg.isOwn && (
-              <div className="message-sender">{msg.senderName}</div>
-            )}
+          <div key={msg.id} className={`message ${msg.isOwn ? 'message-own' : 'message-other'}`}>
+            {!msg.isOwn && <div className="message-sender">{msg.senderName}</div>}
             <div className="message-bubble">
               <div className="message-text">{msg.text}</div>
               <div className="message-time">
@@ -120,7 +105,7 @@ export function Chat({ currentUser, selectedChat, onSendMessage, onLogout }: Cha
       <div className="chat-input-area">
         <input
           type="text"
-          placeholder="Введите сообщение..."
+          placeholder="Сообщение"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           onKeyPress={(e) => e.key === 'Enter' && handleSend()}

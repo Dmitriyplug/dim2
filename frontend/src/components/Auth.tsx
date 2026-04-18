@@ -1,34 +1,37 @@
 import { useState } from 'react'
+import { api, setAuthToken } from '../services/api'
 
 interface AuthProps {
-  onLogin: (username: string, password: string) => void
-  onRegister: (username: string, email: string, password: string) => void
+  onLogin: (user: any, token: string) => void
 }
 
-export function Auth({ onLogin, onRegister }: AuthProps) {
+export default function Auth({ onLogin }: AuthProps) {
   const [isLogin, setIsLogin] = useState(true)
   const [username, setUsername] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
+  const [loading, setLoading] = useState(false)
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError('')
+    setLoading(true)
 
-    if (!username.trim() || !password.trim()) {
-      setError('Заполните все поля')
-      return
-    }
-
-    if (isLogin) {
-      onLogin(username, password)
-    } else {
-      if (!email.trim()) {
-        setError('Введите email')
-        return
+    try {
+      if (isLogin) {
+        const data = await api.login(username, password)
+        setAuthToken(data.token)
+        onLogin(data.user, data.token)
+      } else {
+        const data = await api.register(username, email, password)
+        setAuthToken(data.token)
+        onLogin(data.user, data.token)
       }
-      onRegister(username, email, password)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -36,10 +39,9 @@ export function Auth({ onLogin, onRegister }: AuthProps) {
     <div className="auth-container">
       <div className="auth-card">
         <div className="auth-header">
-          <h1>Мессенджер</h1>
+          <h1>Messenger</h1>
           <p>{isLogin ? 'Добро пожаловать' : 'Создать аккаунт'}</p>
         </div>
-
         <form onSubmit={handleSubmit} className="auth-form">
           <div className="input-group">
             <label>Имя пользователя</label>
@@ -47,10 +49,10 @@ export function Auth({ onLogin, onRegister }: AuthProps) {
               type="text"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
-              placeholder="Введите имя пользователя"
+              placeholder="Введите имя"
+              required
             />
           </div>
-
           {!isLogin && (
             <div className="input-group">
               <label>Email</label>
@@ -59,10 +61,10 @@ export function Auth({ onLogin, onRegister }: AuthProps) {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="Введите email"
+                required
               />
             </div>
           )}
-
           <div className="input-group">
             <label>Пароль</label>
             <input
@@ -70,25 +72,16 @@ export function Auth({ onLogin, onRegister }: AuthProps) {
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               placeholder="Введите пароль"
+              required
             />
           </div>
-
           {error && <div className="auth-error">{error}</div>}
-
-          <button type="submit" className="auth-button">
-            {isLogin ? 'Войти' : 'Зарегистрироваться'}
+          <button type="submit" className="auth-button" disabled={loading}>
+            {loading ? 'Загрузка...' : (isLogin ? 'Войти' : 'Зарегистрироваться')}
           </button>
         </form>
-
         <div className="auth-footer">
-          <button
-            className="auth-switch"
-            onClick={() => {
-              setIsLogin(!isLogin)
-              setError('')
-              setPassword('')
-            }}
-          >
+          <button className="auth-switch" onClick={() => { setIsLogin(!isLogin); setError(''); }}>
             {isLogin ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
           </button>
         </div>

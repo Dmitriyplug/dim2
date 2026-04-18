@@ -3,16 +3,12 @@ import type { ChatRoom, User } from '../types'
 interface ChatListProps {
   chats: ChatRoom[]
   currentUser: User
-  selectedChatId: string | null
-  onSelectChat: (chatId: string) => void
-  onOpenProfile: () => void
+  selectedChatId: number | null
+  onSelectChat: (chatId: number) => void
+  onOpenSettings: () => void
 }
 
-export function ChatList({ chats, currentUser, selectedChatId, onSelectChat, onOpenProfile }: ChatListProps) {
-  const getOtherUser = (chat: ChatRoom) => {
-    return chat.participants.find(p => p.id !== currentUser.id)
-  }
-
+export default function ChatList({ chats, currentUser, selectedChatId, onSelectChat, onOpenSettings }: ChatListProps) {
   const formatTime = (timestamp?: number) => {
     if (!timestamp) return ''
     const date = new Date(timestamp)
@@ -25,31 +21,22 @@ export function ChatList({ chats, currentUser, selectedChatId, onSelectChat, onO
 
   return (
     <div className="chat-list">
-      <div className="chat-list-header">
-        <h2>Чаты</h2>
-        <div className="current-user" onClick={onOpenProfile}>
-          <div className="user-avatar-small">
-            {currentUser.username.charAt(0).toUpperCase()}
-          </div>
-          <span>{currentUser.username}</span>
+      <div className="current-user" onClick={onOpenSettings}>
+        <div className="user-avatar-small">
+          {currentUser.username.charAt(0).toUpperCase()}
         </div>
-      </div>
-
-      <div className="chats-search">
-        <input type="text" placeholder="Поиск чатов..." className="search-input" />
+        <span>{currentUser.username}</span>
       </div>
 
       <div className="chats-container">
         {chats.length === 0 ? (
           <div className="empty-chats">
-            <div className="empty-chats-icon"></div>
             <p>Нет чатов</p>
-            <span>Ваши чаты появятся здесь</span>
+            <span>Добавьте друзей чтобы начать общение</span>
           </div>
         ) : (
           chats.map((chat) => {
-            const otherUser = getOtherUser(chat)
-            const displayName = chat.name || (otherUser ? otherUser.username : 'Unknown')
+            const displayName = chat.name || 'Чат'
             return (
               <div
                 key={chat.id}
@@ -60,10 +47,7 @@ export function ChatList({ chats, currentUser, selectedChatId, onSelectChat, onO
                   {displayName.charAt(0).toUpperCase()}
                 </div>
                 <div className="chat-item-info">
-                  <div className="chat-item-name">
-                    {displayName}
-                    {otherUser?.status === 'online' && <span className="online-dot"></span>}
-                  </div>
+                  <div className="chat-item-name">{displayName}</div>
                   <div className="chat-item-last-message">
                     {chat.lastMessage || 'Нет сообщений'}
                   </div>

@@ -1,189 +1,164 @@
-import { useState } from 'react'
-import { Auth } from './components/Auth'
-import { ChatList } from './components/ChatList'
-import { Chat } from './components/Chat'
-import { Friends } from './components/Friends'
-import { Profile } from './components/Profile'
-import type { User, ChatRoom, Friend } from './types'
+import { useState, useEffect } from 'react'
+import Auth from './components/Auth'
+import ChatList from './components/ChatList'
+import Chat from './components/Chat'
+import Friends from './components/Friends'
+import Settings from './components/Settings'
+import type { User, Friend, ChatRoom } from './types'
+import { setAuthToken } from './services/api'
+import { connectSocket, disconnectSocket } from './services/socket'
 import './App.css'
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false)
   const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [chats, setChats] = useState<ChatRoom[]>([])
   const [friends, setFriends] = useState<Friend[]>([])
-  const [selectedChatId, setSelectedChatId] = useState<string | null>(null)
+  const [chats, setChats] = useState<ChatRoom[]>([])
+  const [selectedChatId, setSelectedChatId] = useState<number | null>(null)
+  const [selectedChatName, setSelectedChatName] = useState('')
   const [activeTab, setActiveTab] = useState<'chats' | 'friends'>('chats')
-  const [showProfile, setShowProfile] = useState(false)
+  const [showSettings, setShowSettings] = useState(false)
 
-  const handleLogin = (username: string, password: string) => {
-    console.log('Login:', username, password)
-    const newUser: User = {
-      id: Date.now().toString(),
-      username: username,
-      email: `${username}@example.com`,
-      status: 'online',
-      bio: '',
-      friendsCount: 0,
-      chatsCount: 0
+  useEffect(() => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      setAuthToken(token)
     }
-    setCurrentUser(newUser)
-    setChats([])
-    setFriends([])
-    setSelectedChatId(null)
+  }, [])
+
+  const handleLogin = async (user: User, token: string) => {
+    setCurrentUser(user)
     setIsAuthenticated(true)
+    connectSocket(token)
+    await loadChats()
+    await loadFriends()
   }
 
-  const handleRegister = (username: string, email: string, password: string) => {
-    console.log('Register:', username, email, password)
-    const newUser: User = {
-      id: Date.now().toString(),
-      username: username,
-      email: email,
-      status: 'online',
-      bio: '',
-      friendsCount: 0,
-      chatsCount: 0
-    }
-    setCurrentUser(newUser)
-    setChats([])
-    setFriends([])
-    setSelectedChatId(null)
-    setIsAuthenticated(true)
-  }
-
-  const handleUpdateBio = (bio: string) => {
-    if (currentUser) {
-      setCurrentUser({ ...currentUser, bio })
+  const loadChats = async () => {
+    try {
+      const { api } = await import('./services/api')
+      const data = await api.getChats()
+      setChats(data)
+    } catch (err) {
+      console.error('Failed to load chats', err)
     }
   }
 
-  const handleAddFriend = (friendUsername: string) => {
-    const newFriend: Friend = {
-      id: Date.now().toString(),
-      username: friendUsername,
-      email: `${friendUsername}@example.com`,
-      status: 'offline'
-    }
-    setFriends([...friends, newFriend])
-    if (currentUser) {
-      setCurrentUser({ ...currentUser, friendsCount: friends.length + 1 })
+  const loadFriends = async () => {
+    try {
+      const { api } = await import('./services/api')
+      const data = await api.getFriends()
+      setFriends(data)
+    } catch (err) {
+      console.error('Failed to load friends', err)
     }
   }
 
-  const handleRemoveFriend = (friendId: string) => {
-    setFriends(friends.filter(f => f.id !== friendId))
-    if (currentUser) {
-      setCurrentUser({ ...currentUser, friendsCount: friends.length - 1 })
+  const handleStartChat = async (friendId: number, friendName: string) => {
+    try {
+      const { api } = await import('./services/api')
+      const data = await api.startChat(friendId)
+      setSelectedChatId(data.chatId)
+      setSelectedChatName(friendName)
+      setActiveTab('chats')
+      await loadChats()
+    } catch (err) {
+      console.error('Failed to start chat', err)
     }
   }
 
-  const handleStartChat = (friend: Friend) => {
-    const existingChat = chats.find(chat => 
-      chat.participants.some(p => p.id === friend.id)
-    )
-    
-    if (existingChat) {
-      setSelectedChatId(existingChat.id)
-    } else {
-      const newChat: ChatRoom = {
-        id: Date.now().toString(),
-        name: friend.username,
-        lastMessage: '',
-        lastMessageTime: Date.now(),
-        unreadCount: 0,
-        participants: [currentUser!, friend]
-      }
-      setChats([...chats, newChat])
-      setSelectedChatId(newChat.id)
-      if (currentUser) {
-        setCurrentUser({ ...currentUser, chatsCount: chats.length + 1 })
-      }
-    }
-    setActiveTab('chats')
-  }
-
-  const handleSendMessage = (chatId: string, text: string) => {
+  const handleSendMessage = (chatId: number, text: string) => {
     setChats(prev => prev.map(chat =>
       chat.id === chatId
-        ? { 
-            ...chat, 
-            lastMessage: text, 
-            lastMessageTime: Date.now(), 
-            unreadCount: chat.unreadCount + 1 
-          }
+        ? { ...chat, lastMessage: text, lastMessageTime: Date.now(), unreadCount: (chat.unreadCount || 0) + 1 }
         : chat
     ))
   }
 
   const handleLogout = () => {
+    disconnectSocket()
+    setAuthToken(null)
     setIsAuthenticated(false)
     setCurrentUser(null)
-    setChats([])
     setFriends([])
+    setChats([])
     setSelectedChatId(null)
-    setShowProfile(false)
+    setShowSettings(false)
   }
 
   if (!isAuthenticated || !currentUser) {
-    return <Auth onLogin={handleLogin} onRegister={handleRegister} />
+    return <Auth onLogin={handleLogin} />
   }
-
-  const selectedChat = chats.find(c => c.id === selectedChatId) || null
 
   return (
     <div className="messenger-layout">
-      {showProfile && (
-        <Profile
-          user={currentUser}
-          onUpdateBio={handleUpdateBio}
-          onClose={() => setShowProfile(false)}
+      {showSettings && (
+        <Settings
+          currentUser={currentUser}
+          onUpdateUser={setCurrentUser}
+          onClose={() => setShowSettings(false)}
           onLogout={handleLogout}
         />
       )}
-      
-      <div className="sidebar">
-        <div className="sidebar-tabs">
-          <button
-            className={`tab-button ${activeTab === 'chats' ? 'active' : ''}`}
-            onClick={() => setActiveTab('chats')}
-          >
-            Чаты
-          </button>
-          <button
-            className={`tab-button ${activeTab === 'friends' ? 'active' : ''}`}
-            onClick={() => setActiveTab('friends')}
-          >
-            Друзья
-          </button>
+
+      <div className="messenger-container">
+        <div className="sidebar">
+          <div className="sidebar-header">
+            <div className="logo">Messages</div>
+            <button className="settings-icon" onClick={() => setShowSettings(true)}>
+              ⚙️
+            </button>
+          </div>
+
+          <div className="sidebar-search">
+            <input type="text" placeholder="Search" className="search-input" />
+          </div>
+
+          <div className="sidebar-tabs">
+            <button
+              className={`tab-button ${activeTab === 'chats' ? 'active' : ''}`}
+              onClick={() => setActiveTab('chats')}
+            >
+              Чаты
+            </button>
+            <button
+              className={`tab-button ${activeTab === 'friends' ? 'active' : ''}`}
+              onClick={() => setActiveTab('friends')}
+            >
+              Друзья
+            </button>
+          </div>
+
+          {activeTab === 'chats' ? (
+            <ChatList
+              chats={chats}
+              currentUser={currentUser}
+              selectedChatId={selectedChatId}
+              onSelectChat={(id) => {
+                const chat = chats.find(c => c.id === id)
+                setSelectedChatId(id)
+                setSelectedChatName(chat?.name || 'Чат')
+              }}
+              onOpenSettings={() => setShowSettings(true)}
+            />
+          ) : (
+            <Friends
+              currentUser={currentUser}
+              friends={friends}
+              setFriends={setFriends}
+              onStartChat={handleStartChat}
+              onOpenSettings={() => setShowSettings(true)}
+            />
+          )}
         </div>
-        
-        {activeTab === 'chats' ? (
-          <ChatList
-            chats={chats}
-            currentUser={currentUser}
-            selectedChatId={selectedChatId}
-            onSelectChat={setSelectedChatId}
-            onOpenProfile={() => setShowProfile(true)}
-          />
-        ) : (
-          <Friends
-            currentUser={currentUser}
-            friends={friends}
-            onAddFriend={handleAddFriend}
-            onRemoveFriend={handleRemoveFriend}
-            onStartChat={handleStartChat}
-            onOpenProfile={() => setShowProfile(true)}
-          />
-        )}
+
+        <Chat
+          currentUser={currentUser}
+          chatId={selectedChatId}
+          chatName={selectedChatName}
+          onSendMessage={handleSendMessage}
+        />
       </div>
-      
-      <Chat
-        currentUser={currentUser}
-        selectedChat={selectedChat}
-        onSendMessage={handleSendMessage}
-        onLogout={handleLogout}
-      />
     </div>
   )
 }

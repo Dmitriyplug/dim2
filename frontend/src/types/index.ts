@@ -1,38 +1,33 @@
 export interface User {
-  id: string
+  id: number
   username: string
   email: string
-  avatar?: string
-  status?: 'online' | 'offline'
-  bio?: string
-  friendsCount?: number
-  chatsCount?: number
+  bio: string
+  status: 'online' | 'offline'
+}
+
+export interface Friend {
+  id: number
+  username: string
+  email: string
+  status: string
 }
 
 export interface ChatRoom {
-  id: string
+  id: number
   name: string
   lastMessage?: string
   lastMessageTime?: number
   unreadCount: number
-  participants: User[]
-  avatar?: string
 }
 
 export interface Message {
-  id: string
-  chatId: string
-  senderId: string
+  id: number
+  chatId: number
+  senderId: number
   senderName: string
   text: string
   timestamp: number
+  isRead: boolean
   isOwn: boolean
-}
-
-export interface Friend {
-  id: string
-  username: string
-  email: string
-  status: 'online' | 'offline'
-  avatar?: string
 }
