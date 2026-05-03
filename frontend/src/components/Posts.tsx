@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { postsApi } from '../services/api'
+import { api } from '../services/api'
 
 interface Post {
   id: number
@@ -7,14 +7,6 @@ interface Post {
   content: string
   author_id: number
   author_name: string
-  created_at: string
-}
-
-interface Comment {
-  id: number
-  text: string
-  user_id: number
-  username: string
   created_at: string
 }
 
@@ -27,94 +19,80 @@ export default function Posts({ currentUserId }: PostsProps) {
   const [title, setTitle] = useState('')
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(false)
-  const [showComments, setShowComments] = useState<number | null>(null)
-  const [comments, setComments] = useState<Record<number, Comment[]>>({})
-  const [commentText, setCommentText] = useState('')
+  const [error, setError] = useState('')
 
-  useEffect(() => { loadPosts() }, [])
+  useEffect(() => {
+    loadPosts()
+  }, [])
 
   const loadPosts = async () => {
     setLoading(true)
     try {
-      const data = await postsApi.getAll()
+      const data = await api.getPosts()
       setPosts(data)
-    } catch (err) { console.error(err) }
-    finally { setLoading(false) }
-  }
-
-  const loadComments = async (postId: number) => {
-    try {
-      const data = await postsApi.getComments(postId)
-      setComments(prev => ({ ...prev, [postId]: data }))
-    } catch (err) { console.error(err) }
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!title.trim() || !content.trim()) return
+    if (!title.trim() || !content.trim()) {
+      setError('Заполните заголовок и содержание')
+      return
+    }
     setLoading(true)
+    setError('')
     try {
-      await postsApi.create(title, content)
+      await api.createPost(title, content)
       setTitle('')
       setContent('')
       await loadPosts()
-    } catch (err) { console.error(err) }
-    finally { setLoading(false) }
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleDelete = async (id: number) => {
     if (!confirm('Удалить пост?')) return
     try {
-      await postsApi.delete(id)
+      await api.deletePost(id)
       await loadPosts()
-    } catch (err) { console.error(err) }
-  }
-
-  const handleAddComment = async (postId: number) => {
-    if (!commentText.trim()) return
-    try {
-      await postsApi.addComment(postId, commentText)
-      setCommentText('')
-      await loadComments(postId)
-    } catch (err) { console.error(err) }
-  }
-
-  const toggleComments = async (postId: number) => {
-    if (showComments === postId) {
-      setShowComments(null)
-    } else {
-      setShowComments(postId)
-      if (!comments[postId]) await loadComments(postId)
+    } catch (err: any) {
+      setError(err.message)
     }
   }
 
   return (
-    <div className="posts-layout">
-      {/* Левая панель - создание поста */}
+    <div className="posts-container">
       <div className="create-post-panel">
         <h3>Создать пост</h3>
         <form onSubmit={handleCreate}>
-          <input 
-            type="text" 
-            placeholder="Заголовок" 
-            value={title} 
-            onChange={(e) => setTitle(e.target.value)} 
-            required 
+          <input
+            type="text"
+            placeholder="Заголовок"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
           />
-          <textarea 
-            placeholder="Что у вас нового?" 
-            value={content} 
-            onChange={(e) => setContent(e.target.value)} 
-            rows={4} 
-            required 
+          <textarea
+            placeholder="Что у вас нового?"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            rows={4}
+            required
           />
+          {error && <div className="post-error">{error}</div>}
           <button type="submit" disabled={loading}>
             {loading ? 'Публикация...' : 'Опубликовать'}
           </button>
         </form>
       </div>
 
-      {/* Центральная лента */}
       <div className="posts-feed">
         <h2>Лента новостей</h2>
         {loading && posts.length === 0 ? (
@@ -122,7 +100,7 @@ export default function Posts({ currentUserId }: PostsProps) {
         ) : posts.length === 0 ? (
           <div className="posts-empty">
             <p>Нет постов</p>
-            <span>Будьте первым!</span>
+            <span>Будьте первым, кто опубликует пост!</span>
           </div>
         ) : (
           posts.map((post) => (
@@ -136,40 +114,13 @@ export default function Posts({ currentUserId }: PostsProps) {
                   </div>
                 </div>
                 {currentUserId === post.author_id && (
-                  <button className="post-delete" onClick={() => handleDelete(post.id)}>Удалить</button>
+                  <button className="post-delete" onClick={() => handleDelete(post.id)}>
+                    Удалить
+                  </button>
                 )}
               </div>
               <h3 className="post-title">{post.title}</h3>
               <p className="post-content">{post.content}</p>
-              
-              <button className="comments-toggle" onClick={() => toggleComments(post.id)}>
-                💬 Комментарии ({comments[post.id]?.length || 0})
-              </button>
-
-              {showComments === post.id && (
-                <div className="post-comments">
-                  <div className="comments-list">
-                    {comments[post.id]?.map((comment) => (
-                      <div key={comment.id} className="comment-item">
-                        <div className="comment-avatar">{comment.username.charAt(0).toUpperCase()}</div>
-                        <div className="comment-content">
-                          <div className="comment-name">{comment.username}</div>
-                          <div className="comment-text">{comment.text}</div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="comment-input">
-                    <input 
-                      type="text" 
-                      placeholder="Написать комментарий..." 
-                      value={commentText} 
-                      onChange={(e) => setCommentText(e.target.value)} 
-                    />
-                    <button onClick={() => handleAddComment(post.id)}>Отправить</button>
-                  </div>
-                </div>
-              )}
             </div>
           ))
         )}

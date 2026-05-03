@@ -1,66 +1,41 @@
-import type { ChatRoom, User } from '../types'
+import type { User } from '../types'
 
 interface ChatListProps {
-  chats: ChatRoom[]
+  chats: User[]
   currentUser: User
-  selectedChatId: number | null
-  onSelectChat: (chatId: number) => void
-  onOpenSettings: () => void
+  selectedChat: User | null
+  onSelectChat: (user: User) => void
 }
 
-export default function ChatList({ chats, currentUser, selectedChatId, onSelectChat, onOpenSettings }: ChatListProps) {
-  const formatTime = (timestamp?: number) => {
-    if (!timestamp) return ''
-    const date = new Date(timestamp)
-    const now = new Date()
-    if (date.toDateString() === now.toDateString()) {
-      return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-    }
-    return date.toLocaleDateString([], { day: '2-digit', month: '2-digit' })
-  }
-
+export default function ChatList({ chats, selectedChat, onSelectChat }: ChatListProps) {
   return (
     <div className="chat-list">
-      <div className="current-user" onClick={onOpenSettings}>
-        <div className="user-avatar-small">
-          {currentUser.username.charAt(0).toUpperCase()}
-        </div>
-        <span>{currentUser.username}</span>
+      <div className="chat-list-header">
+        <h2>Чаты</h2>
       </div>
-
       <div className="chats-container">
         {chats.length === 0 ? (
           <div className="empty-chats">
             <p>Нет чатов</p>
-            <span>Добавьте друзей чтобы начать общение</span>
+            <span>Найдите пользователя и начните общение</span>
           </div>
         ) : (
-          chats.map((chat) => {
-            const displayName = chat.name || 'Чат'
-            return (
-              <div
-                key={chat.id}
-                className={`chat-item ${selectedChatId === chat.id ? 'active' : ''}`}
-                onClick={() => onSelectChat(chat.id)}
-              >
-                <div className="chat-item-avatar">
-                  {displayName.charAt(0).toUpperCase()}
+          chats.map((chat) => (
+            <div
+              key={chat.id}
+              className={`chat-item ${selectedChat?.id === chat.id ? 'active' : ''}`}
+              onClick={() => onSelectChat(chat)}
+            >
+              <div className="chat-item-avatar">{chat.username.charAt(0).toUpperCase()}</div>
+              <div className="chat-item-info">
+                <div className="chat-item-name">
+                  {chat.username}
+                  {chat.status === 'online' && <span className="online-dot"></span>}
                 </div>
-                <div className="chat-item-info">
-                  <div className="chat-item-name">{displayName}</div>
-                  <div className="chat-item-last-message">
-                    {chat.lastMessage || 'Нет сообщений'}
-                  </div>
-                </div>
-                {chat.unreadCount > 0 && (
-                  <div className="unread-badge">{chat.unreadCount}</div>
-                )}
-                {chat.lastMessageTime && (
-                  <div className="chat-item-time">{formatTime(chat.lastMessageTime)}</div>
-                )}
+                <div className="chat-item-last-message">{chat.last_message || 'Нет сообщений'}</div>
               </div>
-            )
-          })
+            </div>
+          ))
         )}
       </div>
     </div>

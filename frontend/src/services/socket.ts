@@ -6,20 +6,16 @@ export const connectSocket = (token: string) => {
   if (socket) {
     socket.disconnect()
   }
-
   socket = io('http://localhost:3002', {
-    transports: ['websocket'],
+    transports: ['websocket', 'polling']
   })
-
   socket.on('connect', () => {
     socket?.emit('auth', token)
   })
-
   return socket
 }
 
 export const getSocket = () => socket
-
 export const disconnectSocket = () => {
   if (socket) {
     socket.disconnect()

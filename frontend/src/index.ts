@@ -3,7 +3,7 @@ import cors from 'cors'
 import http from 'http'
 import { Server } from 'socket.io'
 import jwt from 'jsonwebtoken'
-import { initDatabase, pool } from './database'
+import { initDatabase } from './database'
 import authRoutes from './routes/authRoutes'
 import postRoutes from './routes/postRoutes'
 import messageRoutes from './routes/messageRoutes'
@@ -49,10 +49,8 @@ io.on('connection', (socket) => {
     if (!currentUserId) return
     try {
       const message = await messageService.sendMessage(currentUserId, data.receiverId, data.text)
-      // Отправляем получателю с оригинальным ID
       io.to(`user_${data.receiverId}`).emit('new_message', { ...message, isOwn: false })
-      // Отправляем отправителю с его tempId для обновления
-      socket.emit('message_sent', { ...message, isOwn: true, tempId: data.tempId })
+      socket.emit('message_sent', { ...message, isOwn: true })
     } catch (err) {
       console.error(err)
     }

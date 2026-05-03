@@ -4,30 +4,18 @@ export interface User {
   email: string
   bio: string
   status: 'online' | 'offline'
-}
-
-export interface Friend {
-  id: number
-  username: string
-  email: string
-  status: string
-}
-
-export interface ChatRoom {
-  id: number
-  name: string
-  lastMessage?: string
-  lastMessageTime?: number
-  unreadCount: number
+  avatar?: string
+  last_message?: string
 }
 
 export interface Message {
   id: number
-  chatId: number
-  senderId: number
-  senderName: string
+  tempId?: number
+  sender_id: number
+  receiver_id: number
+  sender_name: string
   text: string
-  timestamp: number
-  isRead: boolean
+  created_at: number
+  is_read: number
   isOwn: boolean
 }

@@ -17,17 +17,12 @@ export default function Auth({ onLogin }: AuthProps) {
     e.preventDefault()
     setError('')
     setLoading(true)
-
     try {
-      if (isLogin) {
-        const data = await api.login(username, password)
-        setAuthToken(data.token)
-        onLogin(data.user, data.token)
-      } else {
-        const data = await api.register(username, email, password)
-        setAuthToken(data.token)
-        onLogin(data.user, data.token)
-      }
+      const data = isLogin 
+        ? await api.login(username, password) 
+        : await api.register(username, email, password)
+      setAuthToken(data.token)
+      onLogin(data.user, data.token)
     } catch (err: any) {
       setError(err.message)
     } finally {
@@ -38,53 +33,46 @@ export default function Auth({ onLogin }: AuthProps) {
   return (
     <div className="auth-container">
       <div className="auth-card">
-        <div className="auth-header">
-          <h1>Messenger</h1>
-          <p>{isLogin ? 'Добро пожаловать' : 'Создать аккаунт'}</p>
-        </div>
-        <form onSubmit={handleSubmit} className="auth-form">
-          <div className="input-group">
-            <label>Имя пользователя</label>
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              placeholder="Введите имя"
-              required
-            />
-          </div>
+        <h1>Мессенджер</h1>
+        <p>{isLogin ? 'Войдите в аккаунт' : 'Создайте аккаунт'}</p>
+        
+        <form onSubmit={handleSubmit}>
+          <input 
+            type="text" 
+            placeholder="Имя пользователя" 
+            value={username} 
+            onChange={(e) => setUsername(e.target.value)} 
+            required 
+          />
+          
           {!isLogin && (
-            <div className="input-group">
-              <label>Email</label>
-              <input
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="Введите email"
-                required
-              />
-            </div>
-          )}
-          <div className="input-group">
-            <label>Пароль</label>
-            <input
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Введите пароль"
-              required
+            <input 
+              type="email" 
+              placeholder="Email" 
+              value={email} 
+              onChange={(e) => setEmail(e.target.value)} 
+              required 
             />
-          </div>
-          {error && <div className="auth-error">{error}</div>}
-          <button type="submit" className="auth-button" disabled={loading}>
+          )}
+          
+          <input 
+            type="password" 
+            placeholder="Пароль" 
+            value={password} 
+            onChange={(e) => setPassword(e.target.value)} 
+            required 
+          />
+          
+          {error && <div className="error">{error}</div>}
+          
+          <button type="submit" disabled={loading} className="auth-btn">
             {loading ? 'Загрузка...' : (isLogin ? 'Войти' : 'Зарегистрироваться')}
           </button>
         </form>
-        <div className="auth-footer">
-          <button className="auth-switch" onClick={() => { setIsLogin(!isLogin); setError(''); }}>
-            {isLogin ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
-          </button>
-        </div>
+        
+        <button className="switch" onClick={() => { setIsLogin(!isLogin); setError(''); }}>
+          {isLogin ? 'Нет аккаунта? Зарегистрироваться' : 'Уже есть аккаунт? Войти'}
+        </button>
       </div>
     </div>
   )
